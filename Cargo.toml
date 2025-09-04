@@ -1,6 +1,6 @@
 [package]
 name = "termsweeper"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "A terminal-based Minesweeper game written in Rust."
 authors = ["Viggo Stark"]

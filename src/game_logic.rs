@@ -1,3 +1,4 @@
+use crate::error::TermsweeperError;
 use crate::timer::Timer;
 use crate::types::*;
 use crossterm::event;
@@ -37,7 +38,11 @@ impl Board {
     }
 
     /// Creates a new board with a custom configuration.
-    pub fn new_with_config(config: GameConfig) -> Board {
+    pub fn new_with_config(config: GameConfig) -> Result<Board, TermsweeperError> {
+        // check that config is valid
+        if config.mines >= config.width * config.height && config.width > 0 && config.height > 0 {
+            return Err(TermsweeperError::InvalidConfig(config));
+        }
         let grid = vec![
             CellBox {
                 kind: CellKind::Number(0),
@@ -45,14 +50,14 @@ impl Board {
             };
             config.width * config.height
         ];
-        Board {
+        Ok(Board {
             grid,
             width: config.width,
             height: config.height,
             timer: Timer::new(),
             mines_to_place: config.mines,
             mines_placed: false,
-        }
+        })
     }
 
     /// Initializes the board, placing mines and calculating numbers.
@@ -121,11 +126,11 @@ impl Board {
     }
 
     /// Returns the starting position for rendering the board in the terminal.
-    pub fn get_board_start_pos(&self) -> (u16, u16) {
-        let (cols, rows) = crossterm::terminal::size().expect("Failed to get terminal size");
+    pub fn get_board_start_pos(&self) -> Result<(u16, u16), TermsweeperError> {
+        let (cols, rows) = crossterm::terminal::size()?;
         let board_start_x = (cols as i16 - (self.width * 2 + 2) as i16) / 2;
         let board_start_y = (rows as i16 - self.height as i16) / 2;
-        (board_start_x as u16, board_start_y as u16)
+        Ok((board_start_x as u16, board_start_y as u16))
     }
 
     /// Checks if the win condition is met.
@@ -215,8 +220,11 @@ impl Board {
     }
 
     /// Converts mouse event coordinates to board cell coordinates.
-    fn cell_coords_from_mouse(&self, event: event::MouseEvent) -> Option<(isize, isize)> {
-        let (board_start_x, board_start_y) = self.get_board_start_pos();
+    fn cell_coords_from_mouse(
+        &self,
+        event: event::MouseEvent,
+    ) -> Result<(isize, isize), TermsweeperError> {
+        let (board_start_x, board_start_y) = self.get_board_start_pos()?;
 
         let cell_x = (event.column as isize - board_start_x as isize - 2) / 2;
         let cell_y = event.row as isize - board_start_y as isize - 1;
@@ -226,9 +234,9 @@ impl Board {
             && cell_y >= 0
             && cell_y < self.height as isize
         {
-            Some((cell_x, cell_y))
+            Ok((cell_x, cell_y))
         } else {
-            None // Click was outside the board
+            Err(TermsweeperError::ClickOutOfBounds) // Click was outside the board
         }
     }
 
@@ -236,7 +244,7 @@ impl Board {
     ///
     /// Returns Some(GameState) if the game state changes (win/loss).
     pub fn handle_mouse_left(&mut self, event: event::MouseEvent) -> Option<GameState> {
-        if let Some((cell_x, cell_y)) = self.cell_coords_from_mouse(event) {
+        if let Ok((cell_x, cell_y)) = self.cell_coords_from_mouse(event) {
             if self.mines_placed == false {
                 self.initialize_board(cell_x, cell_y);
                 self.mines_placed = true;
@@ -271,7 +279,7 @@ impl Board {
 
     /// Handles right mouse click event for flagging/unflagging cells.
     pub fn handle_mouse_right(&mut self, event: event::MouseEvent) {
-        if let Some((cell_x, cell_y)) = self.cell_coords_from_mouse(event) {
+        if let Ok((cell_x, cell_y)) = self.cell_coords_from_mouse(event) {
             if let Some(cell) = self.get_cell_mut(cell_x, cell_y) {
                 cell.state = match cell.state {
                     CellState::Hidden => CellState::Flagged,

@@ -1,4 +1,5 @@
 use ::crossterm::style::Color;
+use std::fmt::Display;
 
 ///! Types and configuration for termsweeper.
 ///!
@@ -63,7 +64,14 @@ pub enum MenuItem {
         item_type: MenuItemType,
         name: &'static str,
         value: usize,
+        constraints: Constraint,
     },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Constraint {
+    pub min: usize,
+    pub max: usize,
 }
 
 /// Represents a cell on the board.
@@ -81,6 +89,16 @@ pub struct GameConfig {
     pub width: usize,
     pub height: usize,
     pub mines: usize,
+}
+
+impl Display for GameConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}x{} with {} mines",
+            self.width, self.height, self.mines
+        )
+    }
 }
 
 /// Color configuration for the terminal UI.
@@ -105,6 +123,27 @@ pub const MIN_HEIGHT: usize = 5;
 pub const MAX_HEIGHT: usize = 50;
 /// Minimum allowed number of mines.
 pub const MIN_MINES: usize = 1;
+
+pub struct CostumConstraint {
+    pub width: Constraint,
+    pub height: Constraint,
+    pub mines: Constraint,
+}
+
+pub const CUSTOM_CONSTRAINT: CostumConstraint = CostumConstraint {
+    width: Constraint {
+        min: MIN_WIDTH,
+        max: MAX_WIDTH,
+    },
+    height: Constraint {
+        min: MIN_HEIGHT,
+        max: MAX_HEIGHT,
+    },
+    mines: Constraint {
+        min: MIN_MINES,
+        max: MAX_WIDTH * MAX_HEIGHT,
+    },
+};
 
 /// Default game configuration (used as fallback).
 pub const DEFAULT_CONFIG: GameConfig = GameConfig {

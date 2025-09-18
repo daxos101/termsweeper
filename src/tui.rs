@@ -2,6 +2,7 @@
 //!
 //! This module contains functions for rendering the Minesweeper game board,
 //! menus, and handling terminal setup/cleanup using `crossterm`.
+use crate::error::TermsweeperError;
 use crate::game_logic::Board;
 use crate::menu::Menu;
 use crate::types::{COLOR_CONFIG, CellKind, CellState, MenuItem};
@@ -15,14 +16,14 @@ use crossterm::{
 use std::io::{Stdout, Write};
 
 /// Set up and clean up section
-pub fn setup_terminal(mut stdout: &Stdout) -> Result<(), std::io::Error> {
+pub fn setup_terminal(mut stdout: &Stdout) -> Result<(), TermsweeperError> {
     terminal::enable_raw_mode()?;
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
     return Ok(());
 }
 
 /// set styles
-pub fn set_styles(mut stdout: &Stdout) -> Result<(), std::io::Error> {
+pub fn set_styles(mut stdout: &Stdout) -> Result<(), TermsweeperError> {
     execute!(
         stdout,
         SetBackgroundColor(COLOR_CONFIG.background),
@@ -33,7 +34,7 @@ pub fn set_styles(mut stdout: &Stdout) -> Result<(), std::io::Error> {
 }
 
 /// Restore terminal to original state
-pub fn cleanup_terminal(mut stdout: &Stdout) -> Result<(), std::io::Error> {
+pub fn cleanup_terminal(mut stdout: &Stdout) -> Result<(), TermsweeperError> {
     while event::poll(std::time::Duration::from_millis(1))? {
         let _ = event::read(); // Clear any pending events
     }
@@ -50,7 +51,11 @@ pub fn cleanup_terminal(mut stdout: &Stdout) -> Result<(), std::io::Error> {
 
 /// Overlay ASCII art above the finished game board for win/lose screens.
 /// If there is room, place it above the board; otherwise, center in terminal.
-pub fn overlay_ascii_art(stdout: &mut Stdout, board: &Board, win: bool) -> anyhow::Result<()> {
+pub fn overlay_ascii_art(
+    stdout: &mut Stdout,
+    board: &Board,
+    win: bool,
+) -> Result<(), TermsweeperError> {
     let win_art = [
         "   __     __          __          ___       ",
         "   \\ \\   / /          \\ \\        / (_)      ",
@@ -74,12 +79,12 @@ pub fn overlay_ascii_art(stdout: &mut Stdout, board: &Board, win: bool) -> anyho
     let art = if win { &win_art } else { &lose_art };
     let color = if win { Color::Green } else { Color::Red };
 
-    let (cols, rows) = crossterm::terminal::size().expect("Failed to get terminal size");
+    let (cols, rows) = crossterm::terminal::size()?;
     let art_width = art[0].len() as u16;
     let art_height = art.len() as u16;
     let art_x = (cols.saturating_sub(art_width)) / 2;
 
-    let (_, board_start_y) = board.get_board_start_pos();
+    let (_, board_start_y) = board.get_board_start_pos()?;
     let art_y = if board_start_y >= art_height + 1 {
         board_start_y - art_height - 3
     } else {
@@ -110,7 +115,7 @@ pub fn overlay_ascii_art(stdout: &mut Stdout, board: &Board, win: bool) -> anyho
 // put into seperate function to avoid code duplication and make more readable
 /// Render the game board to the terminal using crossterm.
 /// Handles terminal resizing and displays a warning if the terminal is too small.
-pub fn render_game_board(board: &Board, stdout: &mut Stdout) -> anyhow::Result<()> {
+pub fn render_game_board(board: &Board, stdout: &mut Stdout) -> Result<(), TermsweeperError> {
     let (cols, rows) = crossterm::terminal::size()?;
     let required_width = 2 + board.width * 2;
     let required_height = 2 + board.height;
@@ -132,7 +137,7 @@ pub fn render_game_board(board: &Board, stdout: &mut Stdout) -> anyhow::Result<(
         return Ok(());
     }
 
-    let (board_start_x, board_start_y) = board.get_board_start_pos();
+    let (board_start_x, board_start_y) = board.get_board_start_pos()?;
     queue!(
         stdout,
         SetBackgroundColor(COLOR_CONFIG.background),
@@ -239,7 +244,7 @@ fn format_box_with_value(value: &str) -> Vec<String> {
 
 /// Render the main game menu with ASCII art title and menu items.
 /// Centers the menu in the terminal and highlights the hovered item.
-pub fn render_game_menu(stdout: &mut Stdout, menu: &Menu) -> anyhow::Result<()> {
+pub fn render_game_menu(stdout: &mut Stdout, menu: &Menu) -> Result<(), TermsweeperError> {
     let title_art = [
         "  _____ _____ ____  __  __ ______        _______ _____ ____  _____ ____  ",
         " |_   _| ____|  _ \\|  \\/  / ___\\ \\      / / ____| ____|  _ \\| ____|  _ \\ ",
@@ -275,13 +280,11 @@ pub fn render_menu(
     cols: u16,
     art_height: u16,
     art_y: u16,
-) -> Result<(), anyhow::Error> {
+) -> Result<(), TermsweeperError> {
     for (i, item) in menu.items.iter().enumerate() {
         let (label, is_adjustable) = match item {
             MenuItem::Main { name, .. } => (name.to_string(), false),
-            MenuItem::Custom { name, value, .. } => {
-                (format!("{}: {}", name, value), true)
-            }
+            MenuItem::Custom { name, value, .. } => (format!("{}: {}", name, value), true),
         };
         let menu_y = art_y + art_height + 1 + i as u16;
         let menu_x = (cols.saturating_sub(label.len() as u16)) / 2;
@@ -293,15 +296,9 @@ pub fn render_menu(
                 SetForegroundColor(Color::Yellow),
             )?;
             if is_adjustable {
-                queue!(stdout,
-                    Print("< "),
-                    Print(label),
-                    Print(" >")
-                )?;
+                queue!(stdout, Print("< "), Print(label), Print(" >"))?;
             } else {
-                queue!(stdout,
-                    Print("➤ "),
-                    Print(label),)?;
+                queue!(stdout, Print("➤ "), Print(label),)?;
             }
         } else {
             queue!(

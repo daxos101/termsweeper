@@ -1,5 +1,6 @@
+use crate::error::TermsweeperError;
 use crate::game_logic::Board;
-use crate::types::{GameConfig, GameState, MenuItem, MenuItemType};
+use crate::types::{CUSTOM_CONSTRAINT, GameConfig, GameState, MenuItem, MenuItemType};
 use crossterm::event;
 
 /// Represents a menu in the Minesweeper game.
@@ -66,7 +67,7 @@ impl Menu {
     }
 
     /// Returns a custom game configuration if all values are set.
-    pub fn get_custom_config(&self) -> Option<GameConfig> {
+    pub fn get_custom_config(&self) -> Result<GameConfig, TermsweeperError> {
         let mut config = GameConfig {
             width: 0,
             height: 0,
@@ -85,11 +86,12 @@ impl Menu {
                 }
             }
         }
-        // Check if all values were found
-        if config.width > 0 && config.height > 0 {
-            Some(config)
+        if config.width > 0 && config.height > 0 && config.mines > 0 {
+            Ok(config)
         } else {
-            None
+            // right now it is complete by default, so this should never happen
+            // but in the future if we change the logic it might
+            Err(TermsweeperError::IncompleteCustomConfig)
         }
     }
 }
@@ -115,13 +117,15 @@ pub fn handle_menu_event(event: &event::Event, menu: &mut Menu) {
                     item_type,
                     name,
                     value,
+                    constraints,
                 } = menu.items[menu.hovered_index]
                 {
-                    let new_value = value.saturating_add(1); // or set a max limit
+                    let new_value = value.saturating_add(1).min(constraints.max);
                     menu.items[menu.hovered_index] = MenuItem::Custom {
                         item_type,
                         name,
                         value: new_value,
+                        constraints,
                     };
                 }
             }
@@ -131,13 +135,15 @@ pub fn handle_menu_event(event: &event::Event, menu: &mut Menu) {
                     item_type,
                     name,
                     value,
+                    constraints,
                 } = menu.items[menu.hovered_index]
                 {
-                    let new_value = value.saturating_sub(1).max(1); // or set a min limit
+                    let new_value = value.saturating_sub(1).max(constraints.min);
                     menu.items[menu.hovered_index] = MenuItem::Custom {
                         item_type,
                         name,
                         value: new_value,
+                        constraints,
                     };
                 }
             }
@@ -153,14 +159,14 @@ pub fn process_menu_selection(
     current_menu: &mut Menu,
     board: &mut Board,
     game_state: &mut GameState,
-) {
+) -> Result<(), TermsweeperError> {
     if let Some(item) = current_menu.selected {
         match item {
             MenuItem::Main {
                 item_type, config, ..
             } => match item_type {
                 MenuItemType::Beginnner | MenuItemType::Intermediate | MenuItemType::Expert => {
-                    *board = Board::new_with_config(config.unwrap());
+                    *board = Board::new_with_config(config.unwrap())?;
                     *game_state = GameState::Ongoing;
                 }
                 MenuItemType::Custom => {
@@ -170,18 +176,16 @@ pub fn process_menu_selection(
                     *game_state = GameState::Exit; // Or some exit state
                 }
                 MenuItemType::Confirm => {
-                    if let Some(config) = current_menu.get_custom_config() {
-                        if config.mines >= config.width * config.height {
-                            // Handle error: maybe reset menu to defaults
-                            // Or better yet, prevent this state in the key handlers!
-                            return;
-                        }
+                    if let Ok(config) = current_menu.get_custom_config() {
                         *board = Board::new_with_config(Board::clamp_config(
                             config.width,
                             config.height,
                             config.mines,
-                        ));
+                        ))?;
                         *game_state = GameState::Ongoing;
+                    } else {
+                        // Invalid config, maybe reset selection or show error
+                        current_menu.selected = None; // Clear selection to stay in menu
                     }
                 }
                 _ => {}
@@ -191,6 +195,7 @@ pub fn process_menu_selection(
             }
         }
     }
+    Ok(())
 }
 
 /// List of main menu items for the Minesweeper game.
@@ -240,16 +245,19 @@ const CUSTOM_MENU_ITEMS_LIST: [MenuItem; 4] = [
         item_type: MenuItemType::Width,
         name: "Width",
         value: 30,
+        constraints: CUSTOM_CONSTRAINT.width,
     },
     MenuItem::Custom {
         item_type: MenuItemType::Height,
         name: "Height",
         value: 30,
+        constraints: CUSTOM_CONSTRAINT.height,
     },
     MenuItem::Custom {
         item_type: MenuItemType::Mines,
         name: "Mines",
         value: 150,
+        constraints: CUSTOM_CONSTRAINT.mines,
     },
     MenuItem::Main {
         item_type: MenuItemType::Confirm,

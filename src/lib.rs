@@ -18,6 +18,8 @@
 //! - [`tui`] - Terminal UI rendering
 //! - [`types`] - Common types and configuration
 
+/// Error types for the application.
+pub mod error;
 /// Core game logic and board state.
 pub mod game_logic;
 /// Menu system and event handling.

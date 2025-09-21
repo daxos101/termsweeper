@@ -2,7 +2,7 @@ use termsweeper::{
     error::TermsweeperError,
     game_logic::Board,
     menu::{self, Menu},
-    tui::{self, cleanup_terminal, render_game_board, setup_terminal},
+    tui::Tui,
     types::GameState,
 };
 
@@ -35,7 +35,7 @@ fn should_menu(event: &Event) -> bool {
 
 fn main() -> Result<(), TermsweeperError> {
     let mut stdout = stdout();
-    setup_terminal(&stdout)?;
+    let mut tui = Tui::new()?;
 
     // The main logic is wrapped in a closure so we can handle its result
     // before the final cleanup.
@@ -45,28 +45,13 @@ fn main() -> Result<(), TermsweeperError> {
         let mut mouse_position = (0, 0);
         let main_menu = Menu::new_main_menu();
         let mut current_menu = Box::new(main_menu);
-        tui::set_styles(&stdout)?;
         'game_loop: loop {
-            match game_state {
-                GameState::Menu => {
-                    tui::render_game_menu(&mut stdout, &current_menu)?;
-                }
-                GameState::Ongoing => {
-                    render_game_board(&board, &mut stdout)?;
-                }
-                GameState::Won | GameState::Lost => {
-                    render_game_board(&board, &mut stdout)?;
-                    tui::overlay_ascii_art(&mut stdout, &board, game_state == GameState::Won)?;
-                }
-                GameState::Exit => {
-                    break 'game_loop;
-                }
-            }
+            tui.render(&game_state, &board, &current_menu, mouse_position)?;
             execute!(&mut stdout, MoveTo(mouse_position.0, mouse_position.1))?;
             // Wait for event, but only up to 100ms
             if let Ok(false) = event::poll(std::time::Duration::from_millis(100)) {
                 if game_state == GameState::Ongoing {
-                    render_game_board(&board, &mut stdout)?;
+                    tui.render(&game_state, &board, &current_menu, mouse_position)?;
                     continue;
                 }
             }
@@ -129,9 +114,6 @@ fn main() -> Result<(), TermsweeperError> {
         }
         Ok(())
     })(); // Immediately execute the closure
-
-    // Cleanup is guaranteed to run after the game loop finishes or errors out.
-    cleanup_terminal(&stdout)?;
 
     result // Return the result of the game loop.
 }

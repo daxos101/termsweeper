@@ -78,4 +78,4 @@ Select "Custom" in the main menu to set your own board width, height, and number
 
 - [crossterm](https://crates.io/crates/crossterm)
 - [rand](https://crates.io/crates/rand)
-- [anyhow](https://crates.io/crates/anyhow)
+- [thiserror](https://crates.io/crates/thiserror)

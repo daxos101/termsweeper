@@ -227,9 +227,17 @@ impl Board {
         event: event::MouseEvent,
     ) -> Result<(isize, isize), TermsweeperError> {
         let (board_start_x, board_start_y) = self.get_board_start_pos()?;
-
-        let cell_x = (event.column as isize - board_start_x as isize - 2) / 2;
-        let cell_y = event.row as isize - board_start_y as isize - 1;
+        let click_x = event.column as isize;
+        let click_y = event.row as isize;
+        // if click is in between cells
+        // only in column direction as rows has no spaces
+        if click_x % 2 != 0 && self.width % 2 != 0 {
+            return Err(TermsweeperError::ClickOutOfBounds);
+        } else if click_x % 2 == 0 && self.width % 2 == 0 {
+            return Err(TermsweeperError::ClickOutOfBounds);
+        }
+        let cell_x = (click_x - board_start_x as isize - 2) / 2;
+        let cell_y = click_y - board_start_y as isize - 1;
 
         if cell_x >= 0
             && cell_x < self.width as isize
@@ -238,7 +246,7 @@ impl Board {
         {
             Ok((cell_x, cell_y))
         } else {
-            Err(TermsweeperError::ClickOutOfBounds) // Click was outside the board
+            Err(TermsweeperError::ClickOutOfBounds)
         }
     }
 

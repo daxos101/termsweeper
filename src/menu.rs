@@ -1,8 +1,7 @@
-use crate::config::{CUSTOM_MENU_ITEMS_LIST, MAIN_MENU_ITEMS_LIST};
+use crate::config::{CUSTOM_MENU_ITEMS_LIST, MAIN_MENU_ITEMS_LIST, THEME_MENU_ITEMS_LIST};
 use crate::error::TermsweeperError;
 use crate::game_logic::Board;
-use crate::types::GameState;
-use crate::types::{GameConfig, MenuItem, MenuItemType};
+use crate::types::{ColorConfig, GameConfig, GameState, MenuItem, MenuItemType};
 use crossterm::event;
 
 /// Represents a menu in the Minesweeper game.
@@ -36,6 +35,11 @@ impl Menu {
     /// Creates the custom configuration menu.
     pub fn new_custom_menu() -> Menu {
         Menu::new(CUSTOM_MENU_ITEMS_LIST.to_vec())
+    }
+
+    /// Creates the themes menu.
+    pub fn new_themes_menu() -> Menu {
+        Menu::new(THEME_MENU_ITEMS_LIST.to_vec())
     }
 
     /// Returns a reference to the currently hovered menu item.
@@ -161,7 +165,9 @@ pub fn process_menu_selection(
     current_menu: &mut Menu,
     board: &mut Board,
     game_state: &mut GameState,
-) -> Result<(), TermsweeperError> {
+    current_color_config: &mut ColorConfig,
+) -> Result<bool, TermsweeperError> {
+    let mut theme_changed = false;
     if let Some(item) = current_menu.selected {
         match item {
             MenuItem::Main {
@@ -173,6 +179,9 @@ pub fn process_menu_selection(
                 }
                 MenuItemType::Custom => {
                     *current_menu = Menu::new_custom_menu();
+                }
+                MenuItemType::Themes => {
+                    *current_menu = Menu::new_themes_menu();
                 }
                 MenuItemType::Exit => {
                     *game_state = GameState::Exit; // Or some exit state
@@ -195,7 +204,12 @@ pub fn process_menu_selection(
             MenuItem::Custom { .. } => {
                 // Do nothing for now
             }
+            MenuItem::Theme { color_config, .. } => {
+                *current_color_config = color_config;
+                *current_menu = Menu::new_main_menu();
+                theme_changed = true;
+            }
         }
     }
-    Ok(())
+    Ok(theme_changed)
 }

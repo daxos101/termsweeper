@@ -3,12 +3,11 @@
 //! This module contains the Tui struct, which handles all terminal-related
 //! operations, including setup, rendering of different game states (menu, board),
 //! and cleanup.
-use crate::config::{COLOR_CONFIG_CLASSIC, LAYOUT_CONFIG, art};
+use crate::config::{LAYOUT_CONFIG, art};
 use crate::error::TermsweeperError;
 use crate::game_logic::Board;
 use crate::menu::Menu;
-use crate::types::MenuItem;
-use crate::types::{CellBox, CellKind, CellState, GameState};
+use crate::types::{CellBox, CellKind, CellState, ColorConfig, GameState, MenuItem};
 use crossterm::{
     cursor::{MoveTo, RestorePosition},
     event::{self, DisableMouseCapture, EnableMouseCapture},
@@ -21,23 +20,29 @@ use std::io::{Stdout, Write, stdout};
 /// Manages the terminal user interface, including setup, rendering, and cleanup.
 pub struct Tui {
     stdout: Stdout,
+    prev_game_state: GameState,
+    prev_term_size: (u16, u16),
 }
 
 impl Tui {
     /// Creates a new `Tui`, enters the alternate screen, enables raw mode,
     /// and sets initial styles.
-    pub fn new() -> Result<Self, TermsweeperError> {
+    pub fn new(color_config: &ColorConfig) -> Result<Self, TermsweeperError> {
         let mut stdout = stdout();
         terminal::enable_raw_mode()?;
         execute!(
             stdout,
             EnterAlternateScreen,
             EnableMouseCapture,
-            SetBackgroundColor(COLOR_CONFIG_CLASSIC.background),
-            SetForegroundColor(Color::Black),
+            SetBackgroundColor(color_config.background),
+            SetForegroundColor(color_config.menu_text),
             Clear(terminal::ClearType::All)
         )?;
-        Ok(Tui { stdout })
+        Ok(Tui {
+            stdout,
+            prev_game_state: GameState::Menu,
+            prev_term_size: terminal::size()?,
+        })
     }
 
     /// Renders the entire UI based on the current game state.
@@ -48,12 +53,19 @@ impl Tui {
         board: &Board,
         menu: &Menu,
         mouse_pos: (u16, u16),
+        color_config: &ColorConfig,
     ) -> Result<(), TermsweeperError> {
+        if &self.prev_game_state != game_state || self.prev_term_size != terminal::size()? {
+            queue!(self.stdout, Clear(terminal::ClearType::All))?;
+            self.prev_game_state = *game_state;
+            self.prev_term_size = terminal::size()?;
+        }
+        queue!(self.stdout, SetBackgroundColor(color_config.background))?;
         match game_state {
-            GameState::Menu => self.render_game_menu(menu)?,
-            GameState::Ongoing => self.render_game_board(board)?,
+            GameState::Menu => self.render_game_menu(menu, color_config)?,
+            GameState::Ongoing => self.render_game_board(board, color_config)?,
             GameState::Won | GameState::Lost => {
-                self.render_game_board(board)?;
+                self.render_game_board(board, color_config)?;
                 self.overlay_ascii_art(board, *game_state == GameState::Won)?;
             }
             GameState::Exit => { /* No rendering needed, will exit loop. */ }
@@ -64,8 +76,17 @@ impl Tui {
         Ok(())
     }
 
+    pub fn clear_term(&mut self) -> Result<(), TermsweeperError> {
+        queue!(self.stdout, Clear(terminal::ClearType::All))?;
+        Ok(())
+    }
+
     /// Renders the game board, including headers, borders, cells, and footers.
-    fn render_game_board(&mut self, board: &Board) -> Result<(), TermsweeperError> {
+    fn render_game_board(
+        &mut self,
+        board: &Board,
+        color_config: &ColorConfig,
+    ) -> Result<(), TermsweeperError> {
         let (cols, rows) = terminal::size()?;
         let required_width =
             board.width as u16 * LAYOUT_CONFIG.cell_width + LAYOUT_CONFIG.border_width;
@@ -73,8 +94,6 @@ impl Tui {
             + LAYOUT_CONFIG.header_height
             + LAYOUT_CONFIG.border_height
             + LAYOUT_CONFIG.footer_height;
-
-        queue!(self.stdout, Clear(terminal::ClearType::All))?;
 
         if cols < required_width || rows < required_height {
             return self.render_terminal_too_small(cols, rows);
@@ -86,33 +105,34 @@ impl Tui {
             start_x,
             start_y - LAYOUT_CONFIG.header_height,
             required_width,
+            color_config,
         )?;
-        self.render_board_content(board, start_x, start_y)?;
-        self.render_footer(cols, start_y + board.height as u16 + 1)?;
-
+        self.render_board_content(board, start_x, start_y, color_config)?;
+        self.render_footer(cols, start_y + board.height as u16 + 1, color_config)?;
         Ok(())
     }
 
     /// Renders the main game menu with its title and items.
-    fn render_game_menu(&mut self, menu: &Menu) -> Result<(), TermsweeperError> {
+    fn render_game_menu(
+        &mut self,
+        menu: &Menu,
+        color_config: &ColorConfig,
+    ) -> Result<(), TermsweeperError> {
+        // too much rendering but no flickering so i guess its fine.
+        queue!(self.stdout, Clear(terminal::ClearType::All))?;
         let (cols, rows) = terminal::size()?;
         let art_width = art::TITLE_ART.iter().map(|s| s.len()).max().unwrap_or(0) as u16;
         let art_height = art::TITLE_ART.len() as u16;
         let art_y = (rows.saturating_sub(art_height + menu.len() as u16 + 2)) / 2;
         let art_x = (cols.saturating_sub(art_width)) / 2;
 
-        queue!(self.stdout, Clear(terminal::ClearType::All))?;
-
         // Draw ASCII art title
-        queue!(
-            self.stdout,
-            SetForegroundColor(COLOR_CONFIG_CLASSIC.menu_title_art)
-        )?;
+        queue!(self.stdout, SetForegroundColor(color_config.menu_title_art))?;
         for (i, line) in art::TITLE_ART.iter().enumerate() {
             queue!(self.stdout, MoveTo(art_x, art_y + i as u16), Print(line))?;
         }
 
-        self.render_menu_items(menu, cols, art_y + art_height + 1)
+        self.render_menu_items(menu, cols, art_y + art_height + 1, color_config)
     }
 }
 
@@ -125,6 +145,7 @@ impl Tui {
         start_x: u16,
         start_y: u16,
         board_pixel_width: u16,
+        color_config: &ColorConfig,
     ) -> Result<(), TermsweeperError> {
         // Draw bombs counter
         let bombs_left_str = format!("💣: {}", board.get_remaining_mines());
@@ -132,7 +153,7 @@ impl Tui {
         for (i, line) in counter_box.iter().enumerate() {
             queue!(
                 self.stdout,
-                SetForegroundColor(COLOR_CONFIG_CLASSIC.counter),
+                SetForegroundColor(color_config.counter),
                 MoveTo(start_x, start_y + i as u16),
                 Print(line),
             )?;
@@ -144,7 +165,7 @@ impl Tui {
         for (i, line) in timer_box.iter().enumerate() {
             queue!(
                 self.stdout,
-                SetForegroundColor(COLOR_CONFIG_CLASSIC.counter),
+                SetForegroundColor(color_config.counter),
                 MoveTo(timer_x, start_y + i as u16),
                 Print(line),
             )?;
@@ -158,8 +179,9 @@ impl Tui {
         board: &Board,
         start_x: u16,
         start_y: u16,
+        color_config: &ColorConfig,
     ) -> Result<(), TermsweeperError> {
-        let border_color = SetForegroundColor(COLOR_CONFIG_CLASSIC.border);
+        let border_color = SetForegroundColor(color_config.border);
         // Draw top border
         queue!(
             self.stdout,
@@ -182,7 +204,7 @@ impl Tui {
             )?;
             for x in 0..board.width {
                 if let Some(cell) = board.get_cell(x as isize, y as isize) {
-                    self.render_cell(cell)?;
+                    self.render_cell(cell, color_config)?;
                 }
             }
             queue!(self.stdout, border_color, Print("│"))?;
@@ -204,16 +226,19 @@ impl Tui {
     }
 
     /// Renders a single cell on the board.
-    fn render_cell(&mut self, cell: &CellBox) -> Result<(), TermsweeperError> {
+    fn render_cell(
+        &mut self,
+        cell: &CellBox,
+        color_config: &ColorConfig,
+    ) -> Result<(), TermsweeperError> {
         let (symbol_str, color) = match cell.state {
-            CellState::Hidden => ("■", COLOR_CONFIG_CLASSIC.hidden_cell),
-            CellState::Flagged => ("⚑", COLOR_CONFIG_CLASSIC.flagged_cell),
+            CellState::Hidden => ("■", color_config.hidden_cell),
+            CellState::Flagged => ("⚑", color_config.flagged_cell),
             CellState::Revealed => match cell.kind {
-                CellKind::Mine => ("💣", COLOR_CONFIG_CLASSIC.mine),
-                CellKind::Number(0) => (" ", COLOR_CONFIG_CLASSIC.empty_cell),
+                CellKind::Mine => ("💣", color_config.mine),
+                CellKind::Number(0) => (" ", color_config.empty_cell),
                 CellKind::Number(n) => {
-                    let number_color =
-                        COLOR_CONFIG_CLASSIC.number[(n as usize).saturating_sub(1).min(7)];
+                    let number_color = color_config.number[(n as usize).saturating_sub(1).min(7)];
                     (&n.to_string()[..], number_color)
                 }
             },
@@ -231,17 +256,19 @@ impl Tui {
     }
 
     /// Renders the footer message with game controls.
-    fn render_footer(&mut self, term_width: u16, footer_y: u16) -> Result<(), TermsweeperError> {
+    fn render_footer(
+        &mut self,
+        term_width: u16,
+        footer_y: u16,
+        color_config: &ColorConfig,
+    ) -> Result<(), TermsweeperError> {
         let controls_msg = "Press [m] for menu [r] to restart or [ctrl+c] to exit.";
         let controls_x = (term_width.saturating_sub(controls_msg.len() as u16)) / 2;
         queue!(
             self.stdout,
             MoveTo(controls_x, footer_y + 1),
-            SetForegroundColor(Color::DarkGrey),
+            SetForegroundColor(color_config.menu_text),
             Print(controls_msg),
-            // Reset colors for the next frame
-            SetBackgroundColor(COLOR_CONFIG_CLASSIC.background),
-            SetForegroundColor(Color::Black),
         )?;
         Ok(())
     }
@@ -253,7 +280,6 @@ impl Tui {
         let y = rows / 2;
         queue!(
             self.stdout,
-            Clear(terminal::ClearType::All),
             MoveTo(x, y),
             SetForegroundColor(Color::Red),
             Print(msg),
@@ -268,11 +294,13 @@ impl Tui {
         menu: &Menu,
         cols: u16,
         start_y: u16,
+        color_config: &ColorConfig,
     ) -> Result<(), TermsweeperError> {
         for (i, item) in menu.items.iter().enumerate() {
             let (label, is_adjustable) = match item {
                 MenuItem::Main { name, .. } => (name.to_string(), false),
                 MenuItem::Custom { name, value, .. } => (format!("{}: {}", name, value), true),
+                MenuItem::Theme { name, .. } => (name.to_string(), false),
             };
             let menu_y = start_y + i as u16;
             let menu_x = (cols.saturating_sub(label.len() as u16)) / 2;
@@ -283,7 +311,7 @@ impl Tui {
             if is_hovered {
                 queue!(
                     self.stdout,
-                    SetForegroundColor(COLOR_CONFIG_CLASSIC.menu_text_hovered)
+                    SetForegroundColor(color_config.menu_text_hovered)
                 )?;
                 if is_adjustable {
                     queue!(self.stdout, Print("< "), Print(label), Print(" >"))?;
@@ -295,7 +323,7 @@ impl Tui {
                     self.stdout,
                     SetForegroundColor(Color::DarkGrey),
                     Print("  "),
-                    SetForegroundColor(COLOR_CONFIG_CLASSIC.menu_text),
+                    SetForegroundColor(color_config.menu_text),
                     Print(label)
                 )?;
             }

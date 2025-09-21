@@ -66,6 +66,7 @@ impl Display for GameConfig {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ColorConfig {
     pub background: Color,
     pub hidden_cell: Color,
@@ -98,11 +99,13 @@ pub enum MenuItemType {
     Intermediate,
     Expert,
     Custom,
+    Themes,
     Exit,
     Width,
     Height,
     Mines,
     Confirm,
+    Theme,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -117,5 +120,10 @@ pub enum MenuItem {
         name: &'static str,
         value: usize,
         constraints: Constraint,
+    },
+    Theme {
+        item_type: MenuItemType,
+        name: &'static str,
+        color_config: ColorConfig,
     },
 }

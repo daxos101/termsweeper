@@ -1,4 +1,5 @@
 use termsweeper::{
+    config::CLASSIC_THEME,
     error::TermsweeperError,
     game_logic::Board,
     menu::{self, Menu},
@@ -35,7 +36,8 @@ fn should_menu(event: &Event) -> bool {
 
 fn main() -> Result<(), TermsweeperError> {
     let mut stdout = stdout();
-    let mut tui = Tui::new()?;
+    let mut current_color_config = &mut CLASSIC_THEME.clone();
+    let mut tui = Tui::new(current_color_config)?;
 
     // The main logic is wrapped in a closure so we can handle its result
     // before the final cleanup.
@@ -46,12 +48,17 @@ fn main() -> Result<(), TermsweeperError> {
         let main_menu = Menu::new_main_menu();
         let mut current_menu = Box::new(main_menu);
         'game_loop: loop {
-            tui.render(&game_state, &board, &current_menu, mouse_position)?;
+            tui.render(
+                &game_state,
+                &board,
+                &current_menu,
+                mouse_position,
+                current_color_config,
+            )?;
             execute!(&mut stdout, MoveTo(mouse_position.0, mouse_position.1))?;
             // Wait for event, but only up to 100ms
             if let Ok(false) = event::poll(std::time::Duration::from_millis(100)) {
                 if game_state == GameState::Ongoing {
-                    tui.render(&game_state, &board, &current_menu, mouse_position)?;
                     continue;
                 }
             }
@@ -71,7 +78,14 @@ fn main() -> Result<(), TermsweeperError> {
             match game_state {
                 GameState::Menu => {
                     menu::handle_menu_event(&event, &mut *current_menu);
-                    menu::process_menu_selection(&mut *current_menu, &mut board, &mut game_state)?;
+                    if menu::process_menu_selection(
+                        &mut *current_menu,
+                        &mut board,
+                        &mut game_state,
+                        &mut current_color_config,
+                    )? {
+                        tui.clear_term()?; // clear old theme
+                    };
                     if game_state == GameState::Ongoing {
                         continue;
                     }

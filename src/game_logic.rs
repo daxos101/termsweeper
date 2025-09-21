@@ -231,9 +231,9 @@ impl Board {
         let click_y = event.row as isize;
         // if click is in between cells
         // only in column direction as rows has no spaces
-        if click_x % 2 != 0 && self.width % 2 != 0 {
+        if click_x % 2 != 0 && board_start_x % 2 == 0 {
             return Err(TermsweeperError::ClickOutOfBounds);
-        } else if click_x % 2 == 0 && self.width % 2 == 0 {
+        } else if click_x % 2 == 0 && board_start_x % 2 != 0 {
             return Err(TermsweeperError::ClickOutOfBounds);
         }
         let cell_x = (click_x - board_start_x as isize - 2) / 2;

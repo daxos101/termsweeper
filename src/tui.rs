@@ -147,8 +147,14 @@ impl Tui {
         board_pixel_width: u16,
         color_config: &ColorConfig,
     ) -> Result<(), TermsweeperError> {
+        let remaining_mines = board.get_remaining_mines();
+        let elapsed_time = board.timer.get_elapsed_seconds();
+        // clear term when amount of digits change
+        if remaining_mines % 10 == 9 || elapsed_time % 10 == 0 {
+            queue!(self.stdout, Clear(terminal::ClearType::All))?;
+        }
         // Draw bombs counter
-        let bombs_left_str = format!("💣: {}", board.get_remaining_mines());
+        let bombs_left_str = format!("💣: {}", remaining_mines);
         let counter_box = format_counter_box(&bombs_left_str);
         for (i, line) in counter_box.iter().enumerate() {
             queue!(
@@ -159,7 +165,7 @@ impl Tui {
             )?;
         }
         // Draw timer
-        let timer_str = format!("⏰: {:02}", board.timer.get_elapsed_seconds());
+        let timer_str = format!("⏰: {:02}", elapsed_time);
         let timer_box = format_counter_box(&timer_str);
         let timer_x = start_x + board_pixel_width - (timer_str.len() as u16 + 2);
         for (i, line) in timer_box.iter().enumerate() {

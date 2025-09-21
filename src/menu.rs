@@ -1,6 +1,8 @@
+use crate::config::{CUSTOM_MENU_ITEMS_LIST, MAIN_MENU_ITEMS_LIST};
 use crate::error::TermsweeperError;
 use crate::game_logic::Board;
-use crate::types::{CUSTOM_CONSTRAINT, GameConfig, GameState, MenuItem, MenuItemType};
+use crate::types::GameState;
+use crate::types::{GameConfig, MenuItem, MenuItemType};
 use crossterm::event;
 
 /// Represents a menu in the Minesweeper game.
@@ -197,71 +199,3 @@ pub fn process_menu_selection(
     }
     Ok(())
 }
-
-/// List of main menu items for the Minesweeper game.
-const MAIN_MENU_ITEMS_LIST: [MenuItem; 5] = [
-    MenuItem::Main {
-        item_type: MenuItemType::Beginnner,
-        name: "Beginner",
-        config: Some(GameConfig {
-            width: 9,
-            height: 9,
-            mines: 10,
-        }),
-    },
-    MenuItem::Main {
-        item_type: MenuItemType::Intermediate,
-        name: "Intermediate",
-        config: Some(GameConfig {
-            width: 16,
-            height: 16,
-            mines: 40,
-        }),
-    },
-    MenuItem::Main {
-        item_type: MenuItemType::Expert,
-        name: "Expert",
-        config: Some(GameConfig {
-            width: 30,
-            height: 16,
-            mines: 99,
-        }),
-    },
-    MenuItem::Main {
-        item_type: MenuItemType::Custom,
-        name: "Custom",
-        config: None,
-    },
-    MenuItem::Main {
-        item_type: MenuItemType::Exit,
-        name: "Exit",
-        config: None,
-    },
-];
-
-/// List of custom configuration menu items for the Minesweeper game.
-const CUSTOM_MENU_ITEMS_LIST: [MenuItem; 4] = [
-    MenuItem::Custom {
-        item_type: MenuItemType::Width,
-        name: "Width",
-        value: 30,
-        constraints: CUSTOM_CONSTRAINT.width,
-    },
-    MenuItem::Custom {
-        item_type: MenuItemType::Height,
-        name: "Height",
-        value: 30,
-        constraints: CUSTOM_CONSTRAINT.height,
-    },
-    MenuItem::Custom {
-        item_type: MenuItemType::Mines,
-        name: "Mines",
-        value: 150,
-        constraints: CUSTOM_CONSTRAINT.mines,
-    },
-    MenuItem::Main {
-        item_type: MenuItemType::Confirm,
-        name: "Confirm",
-        config: None,
-    },
-];

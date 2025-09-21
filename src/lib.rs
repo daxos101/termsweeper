@@ -19,6 +19,7 @@
 //! - [`types`] - Common types and configuration
 
 /// Error types for the application.
+pub mod config;
 pub mod error;
 /// Core game logic and board state.
 pub mod game_logic;
@@ -28,5 +29,5 @@ pub mod menu;
 pub mod timer;
 /// Terminal UI rendering.
 pub mod tui;
-/// Common types and configuration.
+/// Common types.
 pub mod types;

@@ -3,10 +3,12 @@
 //! This module contains the Tui struct, which handles all terminal-related
 //! operations, including setup, rendering of different game states (menu, board),
 //! and cleanup.
+use crate::config::{COLOR_CONFIG_CLASSIC, LAYOUT_CONFIG, art};
 use crate::error::TermsweeperError;
 use crate::game_logic::Board;
 use crate::menu::Menu;
-use crate::types::{COLOR_CONFIG, CellBox, CellKind, CellState, GameState, MenuItem};
+use crate::types::MenuItem;
+use crate::types::{CellBox, CellKind, CellState, GameState};
 use crossterm::{
     cursor::{MoveTo, RestorePosition},
     event::{self, DisableMouseCapture, EnableMouseCapture},
@@ -15,42 +17,6 @@ use crossterm::{
     {execute, queue},
 };
 use std::io::{Stdout, Write, stdout};
-
-/// A module to hold ASCII art constants.
-mod art {
-    pub const WIN_ART: [&str; 6] = [
-        "__     __          __          ___",
-        "\\ \\   / /          \\ \\        / (_)",
-        " \\ \\_/ /__  _   _   \\ \\  /\\  / / _ _ __",
-        "  \\   / _ \\| | | |   \\ \\/  \\/ / | | '_ \\",
-        "   | | (_) | |_| |    \\  /\\  /  | | | | |",
-        "   |_|\\___/ \\__,_|     \\/  \\/   |_|_| |_|",
-    ];
-    pub const LOSE_ART: [&str; 6] = [
-        "  _____                         ____       ",
-        " / ____|                       / __ \\      ",
-        "| |  __  __ _ _ __ ___   ___  | |  | |_   _____ _ __ ",
-        "| | |_ |/ _` | '_ ` _ \\ / _ \\ | |  | \\ \\ / / _ \\ '__|",
-        "| |__| | (_| | | | | | |  __/ | |__| |\\ V /  __/ |   ",
-        " \\_____|\\__,_|_| |_| |_|\\___|  \\____/  \\_/ \\___|_|",
-    ];
-    pub const TITLE_ART: [&str; 5] = [
-        "  _____ _____ ____  __  __ ______        _______ _____ ____  _____ ____  ",
-        " |_   _| ____|  _ \\|  \\/  / ___\\ \\      / / ____| ____|  _ \\| ____|  _ \\ ",
-        "   | | |  _| | |_) | |\\/| \\___ \\\\ \\ /\\ / /|  _| |  _| | |_) |  _| | |_) |",
-        "   | | | |___|  _ <| |  | |___) |\\ V  V / | |___| |___|  __/| |___|  _ < ",
-        "   |_| |_____|_| \\_\\_|  |_|____/  \\_/\\_/  |_____|_____|_|   |_____|_| \\_\\",
-    ];
-}
-
-/// A module for UI layout constants.
-mod layout {
-    pub const HEADER_HEIGHT: u16 = 3;
-    pub const BORDER_HEIGHT: u16 = 2; // Top and bottom borders
-    pub const FOOTER_HEIGHT: u16 = 1;
-    pub const CELL_WIDTH: u16 = 2;
-    pub const BORDER_WIDTH: u16 = 2; // Left and right borders
-}
 
 /// Manages the terminal user interface, including setup, rendering, and cleanup.
 pub struct Tui {
@@ -67,7 +33,7 @@ impl Tui {
             stdout,
             EnterAlternateScreen,
             EnableMouseCapture,
-            SetBackgroundColor(COLOR_CONFIG.background),
+            SetBackgroundColor(COLOR_CONFIG_CLASSIC.background),
             SetForegroundColor(Color::Black),
             Clear(terminal::ClearType::All)
         )?;
@@ -101,11 +67,12 @@ impl Tui {
     /// Renders the game board, including headers, borders, cells, and footers.
     fn render_game_board(&mut self, board: &Board) -> Result<(), TermsweeperError> {
         let (cols, rows) = terminal::size()?;
-        let required_width = board.width as u16 * layout::CELL_WIDTH + layout::BORDER_WIDTH;
+        let required_width =
+            board.width as u16 * LAYOUT_CONFIG.cell_width + LAYOUT_CONFIG.border_width;
         let required_height = board.height as u16
-            + layout::HEADER_HEIGHT
-            + layout::BORDER_HEIGHT
-            + layout::FOOTER_HEIGHT;
+            + LAYOUT_CONFIG.header_height
+            + LAYOUT_CONFIG.border_height
+            + LAYOUT_CONFIG.footer_height;
 
         queue!(self.stdout, Clear(terminal::ClearType::All))?;
 
@@ -117,7 +84,7 @@ impl Tui {
         self.render_header(
             board,
             start_x,
-            start_y - layout::HEADER_HEIGHT,
+            start_y - LAYOUT_CONFIG.header_height,
             required_width,
         )?;
         self.render_board_content(board, start_x, start_y)?;
@@ -137,7 +104,10 @@ impl Tui {
         queue!(self.stdout, Clear(terminal::ClearType::All))?;
 
         // Draw ASCII art title
-        queue!(self.stdout, SetForegroundColor(Color::Black))?;
+        queue!(
+            self.stdout,
+            SetForegroundColor(COLOR_CONFIG_CLASSIC.menu_title_art)
+        )?;
         for (i, line) in art::TITLE_ART.iter().enumerate() {
             queue!(self.stdout, MoveTo(art_x, art_y + i as u16), Print(line))?;
         }
@@ -162,7 +132,7 @@ impl Tui {
         for (i, line) in counter_box.iter().enumerate() {
             queue!(
                 self.stdout,
-                SetForegroundColor(COLOR_CONFIG.counter),
+                SetForegroundColor(COLOR_CONFIG_CLASSIC.counter),
                 MoveTo(start_x, start_y + i as u16),
                 Print(line),
             )?;
@@ -174,7 +144,7 @@ impl Tui {
         for (i, line) in timer_box.iter().enumerate() {
             queue!(
                 self.stdout,
-                SetForegroundColor(COLOR_CONFIG.counter),
+                SetForegroundColor(COLOR_CONFIG_CLASSIC.counter),
                 MoveTo(timer_x, start_y + i as u16),
                 Print(line),
             )?;
@@ -189,7 +159,7 @@ impl Tui {
         start_x: u16,
         start_y: u16,
     ) -> Result<(), TermsweeperError> {
-        let border_color = SetForegroundColor(COLOR_CONFIG.border);
+        let border_color = SetForegroundColor(COLOR_CONFIG_CLASSIC.border);
         // Draw top border
         queue!(
             self.stdout,
@@ -236,13 +206,14 @@ impl Tui {
     /// Renders a single cell on the board.
     fn render_cell(&mut self, cell: &CellBox) -> Result<(), TermsweeperError> {
         let (symbol_str, color) = match cell.state {
-            CellState::Hidden => ("■", COLOR_CONFIG.hidden_cell),
-            CellState::Flagged => ("⚑", COLOR_CONFIG.flagged_cell),
+            CellState::Hidden => ("■", COLOR_CONFIG_CLASSIC.hidden_cell),
+            CellState::Flagged => ("⚑", COLOR_CONFIG_CLASSIC.flagged_cell),
             CellState::Revealed => match cell.kind {
-                CellKind::Mine => ("💣", COLOR_CONFIG.mine),
-                CellKind::Number(0) => (" ", COLOR_CONFIG.empty_cell),
+                CellKind::Mine => ("💣", COLOR_CONFIG_CLASSIC.mine),
+                CellKind::Number(0) => (" ", COLOR_CONFIG_CLASSIC.empty_cell),
                 CellKind::Number(n) => {
-                    let number_color = COLOR_CONFIG.number[(n as usize).saturating_sub(1).min(7)];
+                    let number_color =
+                        COLOR_CONFIG_CLASSIC.number[(n as usize).saturating_sub(1).min(7)];
                     (&n.to_string()[..], number_color)
                 }
             },
@@ -269,7 +240,7 @@ impl Tui {
             SetForegroundColor(Color::DarkGrey),
             Print(controls_msg),
             // Reset colors for the next frame
-            SetBackgroundColor(COLOR_CONFIG.background),
+            SetBackgroundColor(COLOR_CONFIG_CLASSIC.background),
             SetForegroundColor(Color::Black),
         )?;
         Ok(())
@@ -310,7 +281,10 @@ impl Tui {
             queue!(self.stdout, MoveTo(menu_x.saturating_sub(2), menu_y))?;
 
             if is_hovered {
-                queue!(self.stdout, SetForegroundColor(Color::Yellow))?;
+                queue!(
+                    self.stdout,
+                    SetForegroundColor(COLOR_CONFIG_CLASSIC.menu_text_hovered)
+                )?;
                 if is_adjustable {
                     queue!(self.stdout, Print("< "), Print(label), Print(" >"))?;
                 } else {
@@ -321,7 +295,7 @@ impl Tui {
                     self.stdout,
                     SetForegroundColor(Color::DarkGrey),
                     Print("  "),
-                    SetForegroundColor(Color::Black),
+                    SetForegroundColor(COLOR_CONFIG_CLASSIC.menu_text),
                     Print(label)
                 )?;
             }
@@ -334,11 +308,12 @@ impl Tui {
         let (cols, rows) = terminal::size()?;
 
         // Check if terminal is too small for the board.
-        let required_width = board.width as u16 * layout::CELL_WIDTH + layout::BORDER_WIDTH;
+        let required_width =
+            board.width as u16 * LAYOUT_CONFIG.cell_width + LAYOUT_CONFIG.border_width;
         let required_height = board.height as u16
-            + layout::HEADER_HEIGHT
-            + layout::BORDER_HEIGHT
-            + layout::FOOTER_HEIGHT;
+            + LAYOUT_CONFIG.header_height
+            + LAYOUT_CONFIG.border_height
+            + LAYOUT_CONFIG.footer_height;
 
         if cols < required_width || rows < required_height {
             return Ok(());

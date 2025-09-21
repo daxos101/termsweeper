@@ -1,6 +1,8 @@
+use crate::config::{CUSTOM_CONSTRAINT, DEFAULT_CONFIG};
 use crate::error::TermsweeperError;
 use crate::timer::Timer;
-use crate::types::*;
+use crate::types::GameConfig;
+use crate::types::{CellBox, CellKind, CellState, GameState};
 use crossterm::event;
 use rand::prelude::*;
 
@@ -292,10 +294,11 @@ impl Board {
 
     /// Clamps the game configuration values to allowed ranges.
     pub fn clamp_config(width: usize, height: usize, mines: usize) -> GameConfig {
-        let clamped_width = width.clamp(MIN_WIDTH, MAX_WIDTH);
-        let clamped_height = height.clamp(MIN_HEIGHT, MAX_HEIGHT);
+        let clamped_width = width.clamp(CUSTOM_CONSTRAINT.width.min, CUSTOM_CONSTRAINT.width.max);
+        let clamped_height =
+            height.clamp(CUSTOM_CONSTRAINT.height.min, CUSTOM_CONSTRAINT.height.max);
         let max_mines = clamped_width * clamped_height - 1; // Ensure at least one cell is free
-        let clamped_mines = mines.clamp(MIN_MINES, max_mines);
+        let clamped_mines = mines.clamp(CUSTOM_CONSTRAINT.mines.min, max_mines);
         GameConfig {
             width: clamped_width,
             height: clamped_height,

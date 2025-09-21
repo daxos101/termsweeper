@@ -6,7 +6,9 @@ use termsweeper::{
     types::GameState,
 };
 
+use crossterm::cursor::MoveTo;
 use crossterm::event::{self, Event, KeyCode, KeyModifiers, MouseButton};
+use crossterm::execute;
 use std::io::stdout;
 
 fn should_exit(event: &Event) -> bool {
@@ -40,7 +42,7 @@ fn main() -> Result<(), TermsweeperError> {
     let result = (|| {
         let mut board = Board::new();
         let mut game_state = GameState::Menu;
-
+        let mut mouse_position = (0, 0);
         let main_menu = Menu::new_main_menu();
         let mut current_menu = Box::new(main_menu);
         tui::set_styles(&stdout)?;
@@ -60,6 +62,7 @@ fn main() -> Result<(), TermsweeperError> {
                     break 'game_loop;
                 }
             }
+            execute!(&mut stdout, MoveTo(mouse_position.0, mouse_position.1))?;
             // Wait for event, but only up to 100ms
             if let Ok(false) = event::poll(std::time::Duration::from_millis(100)) {
                 if game_state == GameState::Ongoing {
@@ -70,6 +73,15 @@ fn main() -> Result<(), TermsweeperError> {
             let event = event::read()?;
             if should_exit(&event) {
                 break 'game_loop;
+            }
+            if should_menu(&event) && game_state != GameState::Menu {
+                game_state = GameState::Menu;
+                current_menu = Box::new(menu::Menu::new_main_menu());
+                continue;
+            }
+            if should_restart(&event) && game_state == GameState::Ongoing {
+                board.reset();
+                continue;
             }
             match game_state {
                 GameState::Menu => {
@@ -110,6 +122,9 @@ fn main() -> Result<(), TermsweeperError> {
                 GameState::Exit => {
                     break 'game_loop;
                 }
+            }
+            if let Event::Mouse(mouse_event) = &event {
+                mouse_position = (mouse_event.column, mouse_event.row);
             }
         }
         Ok(())

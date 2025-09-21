@@ -67,8 +67,9 @@ Select "Custom" in the main menu to set your own board width, height, and number
 - [x] Add mine counter to display unflagged mines.
 - [x] Fix custom menu min and max values.
 - [x] Refactor to make error handling more consistent.
+- [x] Add go to menu during game.
+- [ ] Add mouse support in menus.
 - [ ] Fix bombs and timer display on small width boards.
-- [ ] add go to menu during game.
 - [ ] Add a high score leaderboard.
 - [ ] Refactor tui.rs code to be more modular.
 - [ ] Add Themes.

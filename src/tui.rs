@@ -57,30 +57,26 @@ pub fn overlay_ascii_art(
     win: bool,
 ) -> Result<(), TermsweeperError> {
     let win_art = [
-        "   __     __          __          ___       ",
-        "   \\ \\   / /          \\ \\        / (_)      ",
-        "    \\ \\_/ /__  _   _   \\ \\  /\\  / / _ _ __  ",
-        "     \\   / _ \\| | | |   \\ \\/  \\/ / | | '_ \\ ",
-        "      | | (_) | |_| |    \\  /\\  /  | | | | |",
-        "      |_|\\___/ \\__,_|     \\/  \\/   |_|_| |_|",
-        " ",
-        "Press [m] for menu [r] to restart or [ctrl+c] to exit.   ",
+        "__     __          __          ___",
+        "\\ \\   / /          \\ \\        / (_)",
+        " \\ \\_/ /__  _   _   \\ \\  /\\  / / _ _ __",
+        "  \\   / _ \\| | | |   \\ \\/  \\/ / | | '_ \\",
+        "   | | (_) | |_| |    \\  /\\  /  | | | | |",
+        "   |_|\\___/ \\__,_|     \\/  \\/   |_|_| |_|",
     ];
     let lose_art = [
-        "  _____                         ____                 ",
-        " / ____|                       / __ \\                ",
+        "  _____                         ____       ",
+        " / ____|                       / __ \\      ",
         "| |  __  __ _ _ __ ___   ___  | |  | |_   _____ _ __ ",
         "| | |_ |/ _` | '_ ` _ \\ / _ \\ | |  | \\ \\ / / _ \\ '__|",
         "| |__| | (_| | | | | | |  __/ | |__| |\\ V /  __/ |   ",
-        " \\_____|\\__,_|_| |_| |_|\\___|  \\____/  \\_/ \\___|_|   ",
-        " ",
-        " Press [m] for menu [r] to restart or [ctrl+c] to exit.       ",
+        " \\_____|\\__,_|_| |_| |_|\\___|  \\____/  \\_/ \\___|_|",
     ];
     let art = if win { &win_art } else { &lose_art };
     let color = if win { Color::Green } else { Color::Red };
 
     let (cols, rows) = crossterm::terminal::size()?;
-    let art_width = art[0].len() as u16;
+    let art_width = art.iter().map(|s| s.len()).max().unwrap_or(0) as u16;
     let art_height = art.len() as u16;
     let art_x = (cols.saturating_sub(art_width)) / 2;
 
@@ -117,8 +113,9 @@ pub fn overlay_ascii_art(
 /// Handles terminal resizing and displays a warning if the terminal is too small.
 pub fn render_game_board(board: &Board, stdout: &mut Stdout) -> Result<(), TermsweeperError> {
     let (cols, rows) = crossterm::terminal::size()?;
+    // Should remove magic numbers here.
     let required_width = 2 + board.width * 2;
-    let required_height = 2 + board.height;
+    let required_height = 6 + board.height; // 3 for counters, 1 for top border, 1 for bottom border, 1 for controls message
 
     if cols < required_width as u16 || rows < required_height as u16 {
         // Terminal is too small, show warning message
@@ -227,6 +224,16 @@ pub fn render_game_board(board: &Board, stdout: &mut Stdout) -> Result<(), Terms
         queue!(stdout, Print("──"))?;
     }
     queue!(stdout, Print("─┘"))?;
+    let controls_msg = "Press [m] for menu [r] to restart or [ctrl+c] to exit.";
+    let controls_x = (cols.saturating_sub(controls_msg.len() as u16)) / 2 + 1;
+    queue!(
+        stdout,
+        MoveTo(controls_x, board_start_y + 2 + board.height as u16),
+        SetForegroundColor(Color::DarkGrey),
+        Print(controls_msg),
+        SetBackgroundColor(COLOR_CONFIG.background),
+        SetForegroundColor(Color::Black),
+    )?;
     stdout.flush()?;
     Ok(())
 }
@@ -254,7 +261,7 @@ pub fn render_game_menu(stdout: &mut Stdout, menu: &Menu) -> Result<(), Termswee
     ];
 
     let (cols, rows) = crossterm::terminal::size()?;
-    let art_width = title_art[0].len() as u16;
+    let art_width = title_art.iter().map(|s| s.len()).max().unwrap_or(0) as u16;
     let art_height = title_art.len() as u16;
     let art_y = (rows.saturating_sub(art_height + menu.len() as u16 + 2)) / 2;
     let art_x = (cols.saturating_sub(art_width)) / 2;
@@ -290,6 +297,7 @@ pub fn render_menu(
         let menu_x = (cols.saturating_sub(label.len() as u16)) / 2;
         let is_hovered = item == menu.get_hovered_item();
         if is_hovered {
+            // menu_x - 2 because of the arrow needs a place
             queue!(
                 stdout,
                 MoveTo(menu_x - 2, menu_y),

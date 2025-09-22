@@ -77,7 +77,7 @@ fn main() -> Result<(), TermsweeperError> {
             }
             match game_state {
                 GameState::Menu => {
-                    menu::handle_menu_event(&event, &mut *current_menu);
+                    (*current_menu).handle_menu_event(&event);
                     if menu::process_menu_selection(
                         &mut *current_menu,
                         &mut board,

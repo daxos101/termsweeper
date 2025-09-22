@@ -1,8 +1,10 @@
+use crate::config::art;
 use crate::config::{CUSTOM_MENU_ITEMS_LIST, MAIN_MENU_ITEMS_LIST, THEME_MENU_ITEMS_LIST};
 use crate::error::TermsweeperError;
 use crate::game_logic::Board;
 use crate::types::{ColorConfig, GameConfig, GameState, MenuItem, MenuItemType};
-use crossterm::event;
+use crossterm::event::{Event, KeyCode, MouseButton, MouseEvent, MouseEventKind};
+use crossterm::terminal;
 
 /// Represents a menu in the Minesweeper game.
 ///
@@ -100,34 +102,109 @@ impl Menu {
             Err(TermsweeperError::IncompleteCustomConfig)
         }
     }
-}
+    /// Handles keyboard events for menu navigation and selection.
+    ///
+    /// Supports up/down navigation, selection, and value adjustment for custom menu items.
+    pub fn handle_menu_event(&mut self, event: &Event) {
+        if let Event::Key(key_event) = event {
+            match key_event.code {
+                KeyCode::Down => {
+                    self.next();
+                }
+                KeyCode::Up => {
+                    self.previous();
+                }
+                KeyCode::Enter => {
+                    self.select();
+                }
+                KeyCode::Right => {
+                    // Increase value for custom menu item
+                    if let MenuItem::Custom {
+                        item_type,
+                        name,
+                        value,
+                        constraints,
+                    } = self.items[self.hovered_index]
+                    {
+                        let new_value = value.saturating_add(1).min(constraints.max);
+                        self.items[self.hovered_index] = MenuItem::Custom {
+                            item_type,
+                            name,
+                            value: new_value,
+                            constraints,
+                        };
+                    }
+                }
+                KeyCode::Left => {
+                    // Decrease value for custom menu item
+                    if let MenuItem::Custom {
+                        item_type,
+                        name,
+                        value,
+                        constraints,
+                    } = self.items[self.hovered_index]
+                    {
+                        let new_value = value.saturating_sub(1).max(constraints.min);
+                        self.items[self.hovered_index] = MenuItem::Custom {
+                            item_type,
+                            name,
+                            value: new_value,
+                            constraints,
+                        };
+                    }
+                }
+                _ => {}
+            }
+        }
+        if let Event::Mouse(mouse_event) = event {
+            self.handle_mouse_event(mouse_event);
+        }
+    }
 
-/// Handles keyboard events for menu navigation and selection.
-///
-/// Supports up/down navigation, selection, and value adjustment for custom menu items.
-pub fn handle_menu_event(event: &event::Event, menu: &mut Menu) {
-    if let event::Event::Key(key_event) = event {
-        match key_event.code {
-            event::KeyCode::Down => {
-                menu.next();
+    fn handle_mouse_event(&mut self, event: &MouseEvent) {
+        match event.kind {
+            MouseEventKind::Down(MouseButton::Left) => self.select(),
+            MouseEventKind::Moved => {
+                if let Ok((cols, rows)) = terminal::size() {
+                    let art_height = art::TITLE_ART.len() as u16;
+                    let start_y = (rows.saturating_sub(art_height + self.len() as u16 + 2)) / 2
+                        + art_height
+                        + 1;
+
+                    for (i, item) in self.items.iter().enumerate() {
+                        let label = match item {
+                            MenuItem::Main { name, .. } => name.to_string(),
+                            MenuItem::Custom { name, value, .. } => {
+                                format!("{}: {}", name, value)
+                            }
+                            MenuItem::Theme { name, .. } => name.to_string(),
+                        };
+
+                        let item_y = start_y + i as u16;
+                        let menu_x = (cols.saturating_sub(label.len() as u16)) / 2;
+
+                        // This is the full clickable area including prefixes like "➤ " or "< "
+                        let start_x = menu_x.saturating_sub(2);
+                        // And suffixes like " >"
+                        let end_x = menu_x + label.len() as u16 + 2;
+
+                        if event.row == item_y && event.column >= start_x && event.column < end_x {
+                            self.hovered_index = i;
+                            return;
+                        }
+                    }
+                }
             }
-            event::KeyCode::Up => {
-                menu.previous();
-            }
-            event::KeyCode::Enter => {
-                menu.select();
-            }
-            event::KeyCode::Right => {
-                // Increase value for custom menu item
+            MouseEventKind::ScrollUp => {
                 if let MenuItem::Custom {
                     item_type,
                     name,
                     value,
                     constraints,
-                } = menu.items[menu.hovered_index]
+                } = self.items[self.hovered_index]
                 {
                     let new_value = value.saturating_add(1).min(constraints.max);
-                    menu.items[menu.hovered_index] = MenuItem::Custom {
+                    self.items[self.hovered_index] = MenuItem::Custom {
                         item_type,
                         name,
                         value: new_value,
@@ -135,17 +212,16 @@ pub fn handle_menu_event(event: &event::Event, menu: &mut Menu) {
                     };
                 }
             }
-            event::KeyCode::Left => {
-                // Decrease value for custom menu item
+            MouseEventKind::ScrollDown => {
                 if let MenuItem::Custom {
                     item_type,
                     name,
                     value,
                     constraints,
-                } = menu.items[menu.hovered_index]
+                } = self.items[self.hovered_index]
                 {
                     let new_value = value.saturating_sub(1).max(constraints.min);
-                    menu.items[menu.hovered_index] = MenuItem::Custom {
+                    self.items[self.hovered_index] = MenuItem::Custom {
                         item_type,
                         name,
                         value: new_value,

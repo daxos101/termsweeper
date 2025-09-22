@@ -76,9 +76,9 @@ Select "Custom" in the main menu to set your own board width, height, and number
 - [x] Add go to menu during game.
 - [x] Refactor tui.rs code to be more modular.
 - [x] Add Themes.
-- [ ] Add mouse support in menus.
-- [ ] Fix bombs and timer display on small width boards.
+- [x] Add mouse support in menus.
 - [ ] Add a high score leaderboard.
+- [ ] Fix bombs and timer display on small width boards.
 
 ### Dependencies
 
